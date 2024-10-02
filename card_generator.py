@@ -1,3 +1,5 @@
+# card_generator.py
+
 import random
 import json
 import logging
@@ -5,6 +7,8 @@ from typing import Dict, Any, List, Tuple
 from tenacity import retry, stop_after_attempt, wait_random_exponential
 from models import Card
 from openai_config import openai_client
+import asyncio
+import requests
 
 # Logging configuration
 logging.basicConfig(
@@ -152,8 +156,8 @@ def generate_fallback_card(rarity: str) -> Dict[str, Any]:
 
 # Image generation
 @retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(3))
-def generate_card_image(card_data: Dict[str, Any]) -> str:
-    """Generate fantasy artwork for the card using OpenAI's image generation API."""
+def generate_card_image(card_data: Dict[str, Any], backblaze_handler) -> str:
+    """Generate fantasy artwork for the card using OpenAI's image generation API and upload to Backblaze."""
     prompt = generate_image_prompt(card_data)
 
     try:
@@ -164,11 +168,39 @@ def generate_card_image(card_data: Dict[str, Any]) -> str:
             quality="standard",
             n=1
         )
-        return response.data[0].url
+        image_url = response.data[0].url
+        logger.debug(f"Raw image URL from OpenAI: {image_url}")
+
+        # Download the image content
+        image_content = download_image(image_url)
+
+        # Define a unique file name, e.g., based on card set and number
+        file_name = f"{card_data['set_name']}_{card_data['card_number']}.png"
+
+        # Upload to Backblaze asynchronously
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # If there's an existing event loop, create a new task
+            uploaded_url = asyncio.create_task(backblaze_handler.upload_image(file_name, image_content))
+            asyncio.run_coroutine_threadsafe(uploaded_url, loop)
+            # Wait for the task to complete
+            uploaded_url = loop.run_until_complete(uploaded_url)
+        else:
+            # If no event loop is running, run the coroutine directly
+            uploaded_url = loop.run_until_complete(
+                backblaze_handler.upload_image(file_name, image_content)
+            )
+
+        if not uploaded_url:
+            logger.warning(f"Using original image URL due to upload failure: {image_url}")
+            return image_url
+
+        return uploaded_url
 
     except Exception as e:
-        logger.error(f"Error generating card image: {e}")
-        raise ValueError(f"Failed to generate card image: {e}")
+        logger.error(f"Error generating or uploading card image: {e}")
+        # Optionally, return a placeholder image URL or handle as needed
+        return generate_fallback_image_url()
 
 def generate_image_prompt(card_data: Dict[str, Any]) -> str:
     """Generate an image generation prompt based on card type and attributes."""
@@ -189,13 +221,27 @@ def generate_image_prompt(card_data: Dict[str, Any]) -> str:
     else:
         prompt += "Depict the card's effect in a visually appealing way. "
 
-    prompt += f"Use the {card_data['color']} color scheme with {card_data['rarity'].lower()} quality. "
+    prompt += f"Use the {card_data.get('color', 'Colorless')} color scheme with {card_data.get('rarity', 'Common').lower()} quality. "
     prompt += "High detail, dramatic lighting, no text or borders."
 
     return prompt
 
+def download_image(image_url: str) -> bytes:
+    """Download image content from a URL."""
+    try:
+        response = requests.get(image_url)
+        response.raise_for_status()
+        return response.content
+    except Exception as e:
+        logger.error(f"Failed to download image from '{image_url}': {e}")
+        raise e
+
+def generate_fallback_image_url() -> str:
+    """Return a fallback image URL in case of failures."""
+    return "https://mtginsider.com/wp-content/uploads/2024/06/duskmournart.jpg"  # Replace with an actual fallback URL
+
 # Pack simulation
-def open_pack() -> List[Dict[str, Any]]:
+def open_pack(backblaze_handler) -> List[Dict[str, Any]]:
     """Simulate opening a Magic: The Gathering pack of cards."""
     pack = []
 
@@ -203,15 +249,15 @@ def open_pack() -> List[Dict[str, Any]]:
 
     # Generate one Rare or Mythic Rare card
     rare_or_mythic = random.choices(['Rare', 'Mythic Rare'], weights=[rarity_probabilities['Rare'], rarity_probabilities['Mythic Rare']])[0]
-    pack.append(generate_card_with_rarity(rare_or_mythic))
+    pack.append(generate_card_with_rarity(rare_or_mythic, backblaze_handler))
 
     # Generate three Uncommon cards
     for _ in range(3):
-        pack.append(generate_card_with_rarity('Uncommon'))
+        pack.append(generate_card_with_rarity('Uncommon', backblaze_handler))
 
     # Generate six Common cards
     for _ in range(6):
-        pack.append(generate_card_with_rarity('Common'))
+        pack.append(generate_card_with_rarity('Common', backblaze_handler))
 
     return pack
 
@@ -219,11 +265,11 @@ def get_rarity_probabilities() -> Dict[str, float]:
     """Fetch or configure the rarity probabilities dynamically."""
     return DEFAULT_RARITY_PROBABILITIES
 
-def generate_card_with_rarity(rarity: str) -> Dict[str, Any]:
+def generate_card_with_rarity(rarity: str, backblaze_handler) -> Dict[str, Any]:
     """Generate a card with specified rarity and its corresponding image."""
     try:
         card_data = generate_card(rarity)
-        card_data['image_url'] = generate_card_image(card_data)
+        card_data['image_url'] = generate_card_image(card_data, backblaze_handler)
         return card_data
     except Exception as e:
         logger.error(f"Failed to generate card with rarity {rarity}: {e}")
