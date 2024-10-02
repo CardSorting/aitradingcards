@@ -1,8 +1,8 @@
-"""empty message
+"""Add abilities column to cards
 
-Revision ID: 490e1cce57a2
+Revision ID: 654c8e280ab0
 Revises: 
-Create Date: 2024-10-02 15:47:37.401886
+Create Date: 2024-10-02 18:30:46.638680
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '490e1cce57a2'
+revision = '654c8e280ab0'
 down_revision = None
 branch_labels = None
 depends_on = None

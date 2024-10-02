@@ -1,9 +1,7 @@
-# routes.py
-
-from flask import Blueprint, render_template, jsonify, request, current_app
+from flask import Blueprint, render_template, jsonify, request
 from extensions import db
 from models import Card
-from card_generator import generate_card, open_pack, generate_card_image
+from card_generator import generate_card, generate_card_image, open_pack
 from typing import List
 import logging
 
@@ -40,18 +38,21 @@ def get_cards():
 @main.route('/api/generate_card', methods=['POST'])
 def api_generate_card():
     try:
-        # Access the BackblazeHandler from the Flask app
-        backblaze_handler = current_app.backblaze_handler
-
-        # Generate the card data using the card_generator module
+        # Generate the card data using OpenAI
         card_data = generate_card()
         logger.info(f"Generated card data: {card_data}")
 
-        # Generate and add the image URL
-        card_data['image_url'] = generate_card_image(card_data, backblaze_handler)
+        # Clean the card data
+        cleaned_card_data = clean_card_data(card_data)
+        logger.info(f"Cleaned card data: {cleaned_card_data}")
+
+        # Generate the image URL for the card
+        image_url = generate_card_image(cleaned_card_data)
+        logger.info(f"Generated image URL: {image_url}")
+        cleaned_card_data['image_url'] = image_url
 
         # Create and store the new card
-        new_card = Card(**card_data)
+        new_card = Card(**cleaned_card_data)
         db.session.add(new_card)
         db.session.commit()
         logger.info(f"New card added to database: {new_card.id}")
@@ -65,17 +66,15 @@ def api_generate_card():
 @main.route('/api/open_pack', methods=['POST'])
 def api_open_pack():
     try:
-        # Access the BackblazeHandler from the Flask app
-        backblaze_handler = current_app.backblaze_handler
-
-        # Open a pack using the card_generator module
-        pack = open_pack(backblaze_handler)
+        pack = open_pack()
         logger.info(f"Generated pack with {len(pack)} cards")
-
-        # Create and store all new cards in the database
         card_objects = []
+
         for card_data in pack:
-            new_card = Card(**card_data)
+            # Clean the card data
+            cleaned_card_data = clean_card_data(card_data)
+
+            new_card = Card(**cleaned_card_data)
             db.session.add(new_card)
             card_objects.append(new_card)
 
@@ -108,3 +107,49 @@ def not_found_error(error):
 def internal_error(error):
     db.session.rollback()
     return jsonify({"error": "Internal server error"}), 500
+
+# Utility function to clean card data
+def clean_card_data(card_data):
+    """Convert OpenAI-generated card data to the proper format expected by the Card model."""
+    return {
+        'name': card_data.get('name', 'Unnamed Card'),
+        'mana_cost': clean_mana_cost(card_data.get('manaCost', '{0}')),
+        'card_type': card_data.get('type', 'Unknown Type'),  # Handle card_type properly
+        'color': card_data.get('color', 'Colorless'),
+        'abilities': ', '.join(card_data.get('abilities', [])),
+        'power_toughness': card_data.get('powerToughness', ''),
+        'flavor_text': card_data.get('flavorText', 'No flavor text'),
+        'rarity': card_data.get('rarity', 'Common'),
+        'set_name': card_data.get('set_name', 'GEN'),
+        'card_number': card_data.get('card_number', 0),
+        'image_url': card_data.get('image_url', None)  # Image URL will be filled in later
+    }
+
+def clean_mana_cost(mana_cost: str) -> str:
+    """Clean the mana cost string by removing the extra curly braces."""
+    return ' '.join(mana_cost.replace('{{', '').replace('}}', '').split())
+
+# Image prompt generation with better handling of the 'type' field
+def generate_image_prompt(card_data):
+    """Generate an image generation prompt based on card type and attributes."""
+    card_type = card_data.get('card_type', 'Unknown')  # Use card_type directly
+
+    prompt = f"Create fantasy artwork for {card_data.get('name', 'Unnamed Card')}. "
+
+    if 'Creature' in card_type:
+        prompt += f"Show a {card_type.lower()} in action. "
+    elif 'Enchantment' in card_type:
+        prompt += "Depict a magical aura or mystical effect. "
+    elif 'Artifact' in card_type:
+        prompt += "Illustrate a detailed magical item or relic. "
+    elif 'Land' in card_type:
+        prompt += f"Illustrate a landscape for {card_data.get('name', 'Unnamed Card')}. "
+    elif 'Planeswalker' in card_type:
+        prompt += f"Show a powerful {card_type.lower()} character. "
+    else:
+        prompt += "Depict the card's effect in a visually appealing way. "
+
+    prompt += f"Use the {card_data.get('color', 'Colorless')} color scheme with {card_data.get('rarity', 'Common').lower()} quality. "
+    prompt += "High detail, dramatic lighting, no text or borders."
+
+    return prompt
