@@ -3,7 +3,7 @@
 from flask import Blueprint, render_template, jsonify, request, current_app
 from extensions import db
 from models import Card
-from card_generator import generate_card, open_pack
+from card_generator import generate_card, open_pack, generate_card_image
 from typing import List
 import logging
 
@@ -44,8 +44,11 @@ def api_generate_card():
         backblaze_handler = current_app.backblaze_handler
 
         # Generate the card data using the card_generator module
-        card_data = generate_card(backblaze_handler)
+        card_data = generate_card()
         logger.info(f"Generated card data: {card_data}")
+
+        # Generate and add the image URL
+        card_data['image_url'] = generate_card_image(card_data, backblaze_handler)
 
         # Create and store the new card
         new_card = Card(**card_data)

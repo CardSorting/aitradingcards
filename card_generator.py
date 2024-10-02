@@ -34,19 +34,18 @@ def safe_get_dict(data: Dict[str, Any], key: str, default: Any = None) -> Any:
 
 def standardize_card_data(card_data: Dict[str, Any]) -> None:
     """
-    Standardizes the card data field names to lowercase and transfers values from
-    uppercase keys (if they exist).
+    Standardizes the card data field names to match the Card model fields.
     Ensures all required fields are present.
     """
     mapping = {
         'Name': 'name',
-        'ManaCost': 'manaCost',
-        'Type': 'type',
+        'ManaCost': 'mana_cost',
+        'Type': 'card_type',
         'Color': 'color',
         'Abilities': 'abilities',
-        'FlavorText': 'flavorText',
+        'FlavorText': 'flavor_text',
         'Rarity': 'rarity',
-        'PowerToughness': 'powerToughness'
+        'PowerToughness': 'power_toughness'
     }
 
     # Transfer uppercase values to lowercase fields if present
@@ -55,7 +54,7 @@ def standardize_card_data(card_data: Dict[str, Any]) -> None:
             card_data[new_key] = card_data.pop(old_key)
 
     # Validate that all required fields are present and set defaults if missing
-    required_fields = ['name', 'manaCost', 'type', 'color', 'abilities', 'flavorText', 'rarity']
+    required_fields = ['name', 'mana_cost', 'card_type', 'color', 'abilities', 'flavor_text', 'rarity', 'power_toughness']
     for field in required_fields:
         if field not in card_data or not card_data[field]:
             card_data[field] = get_default_value_for_field(field)
@@ -64,13 +63,13 @@ def get_default_value_for_field(field: str) -> Any:
     """Provide default values for missing card fields."""
     default_values = {
         'name': 'Unnamed Card',
-        'manaCost': '{0}',
-        'type': 'Unknown Type',
+        'mana_cost': '{0}',
+        'card_type': 'Unknown Type',
         'color': 'Colorless',
         'abilities': 'No abilities',
-        'flavorText': 'No flavor text',
+        'flavor_text': 'No flavor text',
         'rarity': 'Common',
-        'powerToughness': 'N/A'
+        'power_toughness': 'N/A'
     }
     return default_values.get(field, 'Unknown')
 
@@ -109,7 +108,12 @@ def generate_card(rarity: str = None) -> Dict[str, Any]:
         )
         card_data_str = response.choices[0].message.content
         logger.debug(f"Raw card data from GPT: {card_data_str}")
-        card_data = json.loads(card_data_str)
+
+        try:
+            card_data = json.loads(card_data_str)
+        except json.JSONDecodeError:
+            logger.error(f"Failed to parse JSON from OpenAI response: {card_data_str}")
+            return generate_fallback_card(rarity)
 
         # Standardize field names and validate card data
         standardize_card_data(card_data)
@@ -121,7 +125,7 @@ def generate_card(rarity: str = None) -> Dict[str, Any]:
 
         return card_data
 
-    except (json.JSONDecodeError, ValueError) as e:
+    except Exception as e:
         logger.error(f"Error generating card: {e}")
         return generate_fallback_card(rarity)
 
@@ -144,14 +148,15 @@ def generate_fallback_card(rarity: str) -> Dict[str, Any]:
     """Generate a basic fallback card when GPT response is invalid or missing."""
     return {
         'name': 'Default Card',
-        'manaCost': '{0}',
-        'type': 'Basic Creature - Placeholder',
+        'mana_cost': '{0}',
+        'card_type': 'Basic Creature - Placeholder',
         'color': 'Colorless',
         'abilities': 'None',
-        'flavorText': 'Default fallback card.',
+        'flavor_text': 'Default fallback card.',
         'rarity': rarity or 'Common',
         'set_name': DEFAULT_SET_NAME,
-        'card_number': 1
+        'card_number': 1,
+        'power_toughness': '1/1'
     }
 
 # Image generation
@@ -204,7 +209,7 @@ def generate_card_image(card_data: Dict[str, Any], backblaze_handler) -> str:
 
 def generate_image_prompt(card_data: Dict[str, Any]) -> str:
     """Generate an image generation prompt based on card type and attributes."""
-    card_type = card_data.get('type', 'Unknown')
+    card_type = card_data.get('card_type', 'Unknown')
 
     prompt = f"Create fantasy artwork for {card_data.get('name')}. "
 
