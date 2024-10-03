@@ -1,8 +1,8 @@
-"""Add abilities column to cards
+"""Reinitialize migrations and updated Card model for local image storage
 
-Revision ID: 654c8e280ab0
+Revision ID: b203d3523cb0
 Revises: 
-Create Date: 2024-10-02 18:30:46.638680
+Create Date: 2024-10-03 02:01:02.809753
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '654c8e280ab0'
+revision = 'b203d3523cb0'
 down_revision = None
 branch_labels = None
 depends_on = None

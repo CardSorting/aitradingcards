@@ -16,6 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Load initial set of cards
     loadCards();
 
+    // Creates the loading spinner element
     function createLoadingSpinner() {
         const spinner = document.createElement('div');
         spinner.className = 'loading-spinner hidden fixed inset-0 flex items-center justify-center z-50';
@@ -24,17 +25,19 @@ document.addEventListener('DOMContentLoaded', () => {
         return spinner;
     }
 
+    // Determines card color based on mana cost
     function determineCardColor(manaCost) {
         const colors = {
-            'W': '#F8E7B9', // White
-            'U': '#0E68AB', // Blue
-            'B': '#150B00', // Black
-            'R': '#D3202A', // Red
-            'G': '#00733E', // Green
+            'W': '#F8E7B9',  // White
+            'U': '#0E68AB',  // Blue
+            'B': '#150B00',  // Black
+            'R': '#D3202A',  // Red
+            'G': '#00733E'   // Green
         };
         return manaCost.split('').find(char => colors[char]) || '#A9A9A9'; // Default gray
     }
 
+    // Creates mana symbols based on mana cost string
     function createManaSymbols(manaCost) {
         if (!manaCost) return '';
         const symbolMap = {
@@ -52,6 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Creates a card element dynamically based on card data
     function createCardElement(card) {
         const cardElement = document.createElement('div');
         const cardColor = determineCardColor(card.mana_cost);
@@ -64,7 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <h2 class="card-name text-sm font-bold text-shadow">${card.name}</h2>
                     <div class="mana-cost flex text-xs">${createManaSymbols(card.mana_cost)}</div>
                 </div>
-                <img src="${card.image_url}" alt="${card.name}" class="w-full h-[140px] object-cover object-center rounded mb-1">
+                <img src="${card.image_url}" alt="${card.name}" loading="lazy" class="w-full h-[140px] object-cover object-center rounded mb-1">
                 <div class="card-type bg-gradient-to-r from-gray-200 to-gray-100 p-1 text-xs border-b border-black border-opacity-20 mb-1">${card.card_type}</div>
                 <div class="card-text bg-gray-100 bg-opacity-90 p-2 rounded flex-grow overflow-y-auto text-xs leading-tight">
                     <p>${card.abilities}</p>
@@ -80,12 +84,13 @@ document.addEventListener('DOMContentLoaded', () => {
         cardElement.addEventListener('click', () => window.location.href = `/card/${card.id}`);
 
         if (card.rarity === 'Rare' || card.rarity === 'Mythic Rare') {
-            new MTGCard3DTiltEffect(cardElement);
+            new MTGCard3DTiltEffect(cardElement);  // Adding 3D tilt effect for rare cards
         }
 
         return cardElement;
     }
 
+    // Loads cards via API and appends/prepends them to the card grid
     async function loadCards(append = false) {
         if (isLoading) return;
         isLoading = true;
@@ -95,11 +100,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch(`/api/cards?page=${page}&per_page=${cardsPerPage}`);
             const data = await response.json();
 
-            if (!append) cardGrid.innerHTML = '';
+            if (!append) cardGrid.innerHTML = '';  // Clear if not appending
 
             if (Array.isArray(data.cards)) {
                 data.cards.forEach(card => cardGrid.appendChild(createCardElement(card)));
-                page++;
+                page++;  // Increment page for infinite scroll
             } else {
                 console.error('Received data is not in the expected format:', data);
             }
@@ -111,6 +116,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // Initialize event for generating a single card
     function initGenerateCardEvent() {
         generateCardButton.addEventListener('click', async () => {
             loadingSpinner.classList.remove('hidden');
@@ -118,7 +124,7 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const response = await fetch('/api/generate_card', { method: 'POST' });
                 const newCard = await response.json();
-                cardGrid.prepend(createCardElement(newCard));
+                cardGrid.prepend(createCardElement(newCard));  // Prepend new card at the top
             } catch (error) {
                 console.error('Error generating card:', error);
             } finally {
@@ -127,11 +133,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Initialize event for opening a pack of cards
     function initOpenPackEvent() {
         openPackButton.addEventListener('click', async () => {
             loadingSpinner.classList.remove('hidden');
-            cardGrid.innerHTML = '';
-            let packCards = [];
+            cardGrid.innerHTML = '';  // Clear card grid for new pack
 
             try {
                 const response = await fetch('/api/open_pack', { method: 'POST' });
@@ -151,11 +157,20 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Initialize infinite scroll for loading more cards on scroll
     function initInfiniteScroll() {
-        window.addEventListener('scroll', () => {
+        const debounce = (func, wait) => {
+            let timeout;
+            return (...args) => {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(this, args), wait);
+            };
+        };
+
+        window.addEventListener('scroll', debounce(() => {
             if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 500 && !isLoading) {
-                loadCards(true);
+                loadCards(true);  // Load next page when reaching bottom
             }
-        });
+        }, 200));  // 200ms debounce for scroll event
     }
 });

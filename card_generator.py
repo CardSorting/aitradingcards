@@ -1,6 +1,8 @@
 import random
 import json
 import logging
+import os
+import requests
 from typing import Dict, Any, List, Tuple
 from tenacity import retry, stop_after_attempt, wait_random_exponential
 from models import Card
@@ -22,11 +24,26 @@ DEFAULT_RARITY_PROBABILITIES = {
     'Rare': 0.08,
     'Mythic Rare': 0.02
 }
+IMAGE_SAVE_PATH = 'card_images'  # Path to save images locally
 
 # Utility functions
 def safe_get_dict(data: Dict[str, Any], key: str, default: Any = None) -> Any:
     """Safely get a value from a dictionary, providing a default if the key is missing."""
     return data.get(key, default)
+
+def get_default_value_for_field(field: str) -> Any:
+    """Provide default values for missing card fields."""
+    default_values = {
+        'name': 'Unnamed Card',
+        'manaCost': '{0}',
+        'type': 'Unknown Type',
+        'color': 'Colorless',
+        'abilities': 'No abilities',
+        'flavorText': 'No flavor text',
+        'rarity': 'Common',
+        'powerToughness': 'N/A'
+    }
+    return default_values.get(field, 'Unknown')
 
 def standardize_card_data(card_data: Dict[str, Any]) -> None:
     """
@@ -55,20 +72,6 @@ def standardize_card_data(card_data: Dict[str, Any]) -> None:
     for field in required_fields:
         if field not in card_data or not card_data[field]:
             card_data[field] = get_default_value_for_field(field)
-
-def get_default_value_for_field(field: str) -> Any:
-    """Provide default values for missing card fields."""
-    default_values = {
-        'name': 'Unnamed Card',
-        'manaCost': '{0}',
-        'type': 'Unknown Type',
-        'color': 'Colorless',
-        'abilities': 'No abilities',
-        'flavorText': 'No flavor text',
-        'rarity': 'Common',
-        'powerToughness': 'N/A'
-    }
-    return default_values.get(field, 'Unknown')
 
 # Set and card number handling
 def get_next_set_name_and_number() -> Tuple[str, int]:
@@ -150,13 +153,14 @@ def generate_fallback_card(rarity: str) -> Dict[str, Any]:
         'card_number': 1
     }
 
-# Image generation
+# Image generation and saving
 @retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(3))
-def generate_card_image(card_data: Dict[str, Any]) -> str:
-    """Generate fantasy artwork for the card using OpenAI's image generation API."""
+def generate_card_image(card_data: Dict[str, Any], save_path: str = IMAGE_SAVE_PATH) -> str:
+    """Generate fantasy artwork for the card using OpenAI's image generation API and save the image locally."""
     prompt = generate_image_prompt(card_data)
 
     try:
+        # Generate the image using OpenAI's image API
         response = openai_client.images.generate(
             model="dall-e-3",
             prompt=prompt,
@@ -164,11 +168,28 @@ def generate_card_image(card_data: Dict[str, Any]) -> str:
             quality="standard",
             n=1
         )
-        return response.data[0].url
+        image_url = response.data[0].url
+
+        # Fetch the image content from the URL
+        image_data = requests.get(image_url).content
+
+        # Ensure the save directory exists
+        os.makedirs(save_path, exist_ok=True)
+
+        # Generate a unique filename based on card name and number
+        file_name = f"{card_data['set_name']}_{card_data['card_number']}.png"
+        file_path = os.path.join(save_path, file_name)
+
+        # Save the image to the specified directory
+        with open(file_path, 'wb') as image_file:
+            image_file.write(image_data)
+
+        logger.info(f"Image saved locally at: {file_path}")
+        return file_name  # Return the file name for serving via Flask
 
     except Exception as e:
-        logger.error(f"Error generating card image: {e}")
-        raise ValueError(f"Failed to generate card image: {e}")
+        logger.error(f"Error generating or saving card image: {e}")
+        raise ValueError(f"Failed to generate or save card image: {e}")
 
 def generate_image_prompt(card_data: Dict[str, Any]) -> str:
     """Generate an image generation prompt based on card type and attributes."""
@@ -223,7 +244,7 @@ def generate_card_with_rarity(rarity: str) -> Dict[str, Any]:
     """Generate a card with specified rarity and its corresponding image."""
     try:
         card_data = generate_card(rarity)
-        card_data['image_url'] = generate_card_image(card_data)
+        card_data['image_url'] = generate_card_image(card_data)  # Store the image file name
         return card_data
     except Exception as e:
         logger.error(f"Failed to generate card with rarity {rarity}: {e}")

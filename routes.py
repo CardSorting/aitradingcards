@@ -1,23 +1,40 @@
-from flask import Blueprint, render_template, jsonify, request
+from flask import Blueprint, render_template, jsonify, request, send_from_directory, url_for
 from extensions import db
 from models import Card
 from card_generator import generate_card, generate_card_image, open_pack
 from typing import List
 import logging
+import os
 
 main = Blueprint('main', __name__)
 
 logger = logging.getLogger(__name__)
 
+# Serve the images from the local directory
+@main.route('/card_image/<filename>')
+def card_image(filename):
+    """Serve the image file from the local storage."""
+    image_folder = 'card_images'
+    try:
+        return send_from_directory(image_folder, filename)
+    except FileNotFoundError:
+        logger.error(f"Image file {filename} not found")
+        return jsonify({"error": "Image not found"}), 404
+
+# Homepage
 @main.route('/')
 def index():
     return render_template('index.html')
 
+# Refactored Card detail route
 @main.route('/card/<int:card_id>')
 def card_detail(card_id):
     card = Card.query.get_or_404(card_id)
+    # Add the full image URL to the card object
+    card.full_image_url = url_for('main.card_image', filename=card.image_url)
     return render_template('card_detail.html', card=card)
 
+# API to get paginated cards
 @main.route('/api/cards')
 def get_cards():
     page = request.args.get('page', 1, type=int)
@@ -35,6 +52,7 @@ def get_cards():
         'current_page': page
     })
 
+# API to generate a single card
 @main.route('/api/generate_card', methods=['POST'])
 def api_generate_card():
     try:
@@ -46,10 +64,12 @@ def api_generate_card():
         cleaned_card_data = clean_card_data(card_data)
         logger.info(f"Cleaned card data: {cleaned_card_data}")
 
-        # Generate the image URL for the card
-        image_url = generate_card_image(cleaned_card_data)
-        logger.info(f"Generated image URL: {image_url}")
-        cleaned_card_data['image_url'] = image_url
+        # Generate and store the image file locally
+        image_filename = generate_card_image(cleaned_card_data)
+        logger.info(f"Generated image file: {image_filename}")
+
+        # Store just the image filename, the full URL will be created in the to_dict method
+        cleaned_card_data['image_url'] = image_filename
 
         # Create and store the new card
         new_card = Card(**cleaned_card_data)
@@ -63,6 +83,7 @@ def api_generate_card():
         db.session.rollback()
         return jsonify({"error": "Failed to generate card", "details": str(e)}), 500
 
+# API to open a pack of cards
 @main.route('/api/open_pack', methods=['POST'])
 def api_open_pack():
     try:
@@ -74,6 +95,7 @@ def api_open_pack():
             # Clean the card data
             cleaned_card_data = clean_card_data(card_data)
 
+            # Save the card to the database
             new_card = Card(**cleaned_card_data)
             db.session.add(new_card)
             card_objects.append(new_card)
@@ -87,6 +109,7 @@ def api_open_pack():
         db.session.rollback()
         return jsonify({"error": "Failed to open pack. Please try again later."}), 500
 
+# API to clear the card database
 @main.route('/api/clear_database', methods=['POST'])
 def clear_database():
     try:
@@ -99,6 +122,7 @@ def clear_database():
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
 
+# Error handlers
 @main.errorhandler(404)
 def not_found_error(error):
     return jsonify({"error": "Not found"}), 404
@@ -114,7 +138,7 @@ def clean_card_data(card_data):
     return {
         'name': card_data.get('name', 'Unnamed Card'),
         'mana_cost': clean_mana_cost(card_data.get('manaCost', '{0}')),
-        'card_type': card_data.get('type', 'Unknown Type'),  # Handle card_type properly
+        'card_type': card_data.get('type', 'Unknown Type'),
         'color': card_data.get('color', 'Colorless'),
         'abilities': ', '.join(card_data.get('abilities', [])),
         'power_toughness': card_data.get('powerToughness', ''),
@@ -122,34 +146,9 @@ def clean_card_data(card_data):
         'rarity': card_data.get('rarity', 'Common'),
         'set_name': card_data.get('set_name', 'GEN'),
         'card_number': card_data.get('card_number', 0),
-        'image_url': card_data.get('image_url', None)  # Image URL will be filled in later
+        'image_url': card_data.get('image_url', None)  # Store the image filename here
     }
 
 def clean_mana_cost(mana_cost: str) -> str:
     """Clean the mana cost string by removing the extra curly braces."""
     return ' '.join(mana_cost.replace('{{', '').replace('}}', '').split())
-
-# Image prompt generation with better handling of the 'type' field
-def generate_image_prompt(card_data):
-    """Generate an image generation prompt based on card type and attributes."""
-    card_type = card_data.get('card_type', 'Unknown')  # Use card_type directly
-
-    prompt = f"Create fantasy artwork for {card_data.get('name', 'Unnamed Card')}. "
-
-    if 'Creature' in card_type:
-        prompt += f"Show a {card_type.lower()} in action. "
-    elif 'Enchantment' in card_type:
-        prompt += "Depict a magical aura or mystical effect. "
-    elif 'Artifact' in card_type:
-        prompt += "Illustrate a detailed magical item or relic. "
-    elif 'Land' in card_type:
-        prompt += f"Illustrate a landscape for {card_data.get('name', 'Unnamed Card')}. "
-    elif 'Planeswalker' in card_type:
-        prompt += f"Show a powerful {card_type.lower()} character. "
-    else:
-        prompt += "Depict the card's effect in a visually appealing way. "
-
-    prompt += f"Use the {card_data.get('color', 'Colorless')} color scheme with {card_data.get('rarity', 'Common').lower()} quality. "
-    prompt += "High detail, dramatic lighting, no text or borders."
-
-    return prompt

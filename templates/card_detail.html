@@ -28,7 +28,7 @@
             </div>
 
             <!-- Card Image -->
-            <img src="{{ card.image_url or '/static/images/placeholder.png' }}" alt="{{ card.name or 'Unknown Card' }}" class="w-full h-[220px] object-cover object-center rounded mb-1" loading="lazy">
+            <img src="{{ card.full_image_url or '/static/images/placeholder.png' }}" alt="{{ card.name or 'Unknown Card' }}" class="w-full h-[220px] object-cover object-center rounded mb-1" loading="lazy">
 
             <!-- Card Type -->
             <div class="card-type bg-gradient-to-r from-gray-200 to-gray-100 p-2 text-sm border-b border-black border-opacity-20 mb-1">
@@ -50,13 +50,14 @@
     </div>
 </div>
 
+<!-- Script to apply the 3D tilt effect to rare cards -->
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     const cardElement = document.getElementById('card-container');
     if (cardElement) {
         const cardRarity = '{{ card.rarity }}';
         if (cardRarity === 'Rare' || cardRarity === 'Mythic Rare') {
-            new MTGCard3DTiltEffect(cardElement);
+            new MTGCard3DTiltEffect(cardElement);  // Apply 3D tilt effect for rare cards
         }
     }
 });

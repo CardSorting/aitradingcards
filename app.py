@@ -8,10 +8,10 @@ def create_app():
     # Create and configure the Flask app
     app = Flask(__name__)
 
-    # Set SQLite database URI for SQLAlchemy
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'  # SQLite file-based DB
+    # Set SQLite database URI for SQLAlchemy (replace this with your database URI if not using SQLite)
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
 
-    # Disable SQLAlchemy event notifications
+    # Disable SQLAlchemy event notifications (this can consume resources unnecessarily)
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
     # Initialize database
@@ -20,8 +20,8 @@ def create_app():
     # Initialize Flask-Migrate
     migrate = Migrate(app, db)
 
-    # Import models here to ensure they're known to Flask-Migrate
-    from models import Card  # Make sure to import all your models
+    # Import models here to ensure they're known to Flask-Migrate for migrations
+    from models import Card  # Make sure to import all your models here
 
     # Import and register blueprints (routes)
     from routes import main as main_blueprint
@@ -32,11 +32,11 @@ def create_app():
 # Create the Flask application instance
 app = create_app()
 
-# This context processor makes openai_client available in all templates
+# Context processor to inject OpenAI client into templates
 @app.context_processor
 def inject_openai_client():
     return dict(openai_client=openai_client)
 
-# Only for development
+# Only for development (set debug=True)
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

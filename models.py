@@ -12,7 +12,7 @@ class Card(db.Model):
     power_toughness = db.Column(db.String(10))
     flavor_text = db.Column(db.Text)
     rarity = db.Column(db.String(20), nullable=False)
-    image_url = db.Column(db.String(255))
+    image_url = db.Column(db.String(255))  # Path to the locally stored image
     set_name = db.Column(db.String(3), nullable=False, default='GEN')
     card_number = db.Column(db.Integer, nullable=False, default=0)
 
@@ -28,6 +28,10 @@ class Card(db.Model):
         return f"<Card {self.name} (ID: {self.id})>"
 
     def to_dict(self):
+        """
+        Convert the Card object to a dictionary. 
+        Ensure the `image_url` is formatted as a relative URL for the image file.
+        """
         return {
             'id': self.id,
             'name': self.name,
@@ -38,7 +42,7 @@ class Card(db.Model):
             'power_toughness': self.power_toughness,
             'flavor_text': self.flavor_text,
             'rarity': self.rarity,
-            'image_url': self.image_url,
+            'image_url': f"/card_image/{self.image_url}" if self.image_url else None,  # Ensure proper image path
             'set_name': self.set_name,
             'card_number': self.card_number
         }
