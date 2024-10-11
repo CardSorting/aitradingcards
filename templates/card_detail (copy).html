@@ -2,8 +2,8 @@
 
 {% block content %}
 <div class="flex flex-col justify-center items-center min-h-screen space-y-4">
-    <!-- Responsive Card Layout (Ensure correct height and width) -->
-    <div id="card-container" style="height: 525px; width: 375px; border: 1px solid; text-align: center;">
+    <!-- Responsive Card Layout -->
+    <div id="card-container" class="mtg-card w-[90vw] sm:w-[375px] h-[80vh] sm:h-[525px] relative text-black rounded-[18px] shadow-lg overflow-hidden transition-transform transform hover:scale-105 duration-500">
         <div class="card-frame h-full p-3 flex flex-col">
             <!-- Header: Card Name and Mana Cost -->
             <div class="card-header flex justify-between items-center bg-gradient-to-r from-gray-200 to-gray-100 p-2 rounded-t-md mb-1">
@@ -27,8 +27,8 @@
                 </div>
             </div>
 
-            <!-- Card Image Placeholder -->
-            <img src="{{ card.full_image_url or '/static/images/placeholder.png' }}" alt="{{ card.name or 'Unknown Card' }}" class="w-full h-[220px] object-cover object-center rounded mb-1 card-image" loading="lazy">
+            <!-- Card Image -->
+            <img src="{{ card.full_image_url or '/static/images/placeholder.png' }}" alt="{{ card.name or 'Unknown Card' }}" class="w-full h-[220px] object-cover object-center rounded mb-1" loading="lazy">
 
             <!-- Card Type -->
             <div class="card-type bg-gradient-to-r from-gray-200 to-gray-100 p-2 text-sm border-b border-black border-opacity-20 mb-1">
@@ -48,5 +48,39 @@
             </div>
         </div>
     </div>
+
+    <!-- Button to Save Card as Image -->
+    <button id="save-card-image" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded">Save as Image</button>
+
 </div>
+
+<!-- Script to apply the 3D tilt effect to rare cards and bind save image functionality -->
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.0.0-alpha.12/dist/html2canvas.min.js"></script> <!-- Ensure this line to include html2canvas -->
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const cardElement = document.getElementById('card-container');
+    const saveImageButton = document.getElementById('save-card-image');
+
+    if (cardElement && saveImageButton) {
+        const cardRarity = '{{ card.rarity }}';
+        if (cardRarity === 'Rare' || cardRarity === 'Mythic Rare') {
+            new MTGCard3DTiltEffect(cardElement);  // Apply 3D tilt effect for rare cards
+        }
+
+        // Capture card and save as image on button click
+        saveImageButton.addEventListener('click', () => {
+            html2canvas(cardElement).then(canvas => {
+                const link = document.createElement('a');
+                link.href = canvas.toDataURL('image/png');
+                link.download = 'card_image.png';
+                link.click();
+            }).catch(error => {
+                console.error('Error capturing card as image:', error);
+            });
+        });
+    } else {
+        console.error('Error: Required DOM elements not found.');
+    }
+});
+</script>
 {% endblock %}

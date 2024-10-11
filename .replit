@@ -8,8 +8,8 @@ hidden = [".pythonlibs"]
 channel = "stable-24_05"
 
 [deployment]
-run =  ["gunicorn", "--bind", "0.0.0.0:5000", "main:app"]
-deploymentTarget = "cloudrun"
+run =  ["gunicorn", "--bind", "0.0.0.0:5000", "app:app"]
+deploymentTarget = "gce"
 
 [[ports]]
 localPort = 5000

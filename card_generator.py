@@ -47,8 +47,8 @@ def get_default_value_for_field(field: str) -> Any:
 
 def standardize_card_data(card_data: Dict[str, Any]) -> None:
     """
-    Standardizes the card data field names to lowercase and transfers values from
-    uppercase keys (if they exist).
+    Standardizes the card data field names to lowercase and 
+    transfers values from uppercase keys (if they exist).
     Ensures all required fields are present.
     """
     mapping = {
@@ -94,7 +94,7 @@ def increment_set_name(set_name: str) -> str:
         return chr(ord(set_name) + 1)
     return set_name
 
-# Card generation
+# Card generation logic
 @retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(3))
 def generate_card(rarity: str = None) -> Dict[str, Any]:
     """Generate a card with optional rarity, using fallback data on failure."""
@@ -127,7 +127,7 @@ def generate_card(rarity: str = None) -> Dict[str, Any]:
 def generate_card_prompt(rarity: str = None) -> str:
     """Generate the GPT prompt for creating the card."""
     return (
-        f"Create a unique Magic: The Gathering card with these attributes:\n"
+        f"Create a card with the following attributes:\n"
         "- Name: A creative, thematic name\n"
         "- ManaCost: Using curly braces (e.g., {{2}}{{W}}{{U}})\n"
         "- Type: Full type line (e.g., 'Legendary Creature - Elf Warrior')\n"
@@ -153,10 +153,10 @@ def generate_fallback_card(rarity: str) -> Dict[str, Any]:
         'card_number': 1
     }
 
-# Image generation and saving
+# Image generation logic
 @retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(3))
 def generate_card_image(card_data: Dict[str, Any], save_path: str = IMAGE_SAVE_PATH) -> str:
-    """Generate fantasy artwork for the card using OpenAI's image generation API and save the image locally."""
+    """Generate fantasy artwork for the card and save the image locally."""
     prompt = generate_image_prompt(card_data)
 
     try:
@@ -195,29 +195,52 @@ def generate_image_prompt(card_data: Dict[str, Any]) -> str:
     """Generate an image generation prompt based on card type and attributes."""
     card_type = card_data.get('type', 'Unknown')
 
-    prompt = f"Create fantasy artwork for {card_data.get('name')}. "
+    prompt = f"Create detailed fantasy artwork for \"{card_data.get('name')}\", which is a {card_type.lower()}. "
 
     if 'Creature' in card_type:
-        prompt += f"Show a {card_type.lower()} in action. "
+        prompt += f"Show a {card_type.lower()} in a dynamic scene. "
     elif 'Enchantment' in card_type:
-        prompt += "Depict a magical aura or mystical effect. "
+        prompt += "Depict a captivating magical aura or effect. "
     elif 'Artifact' in card_type:
-        prompt += "Illustrate a detailed magical item or relic. "
+        prompt += "Illustrate an intricate magical item or relic. "
     elif 'Land' in card_type:
-        prompt += f"Illustrate a landscape for {card_data['name']}. "
+        prompt += f"Visualize an evocative landscape called {card_data['name']}. "
     elif 'Planeswalker' in card_type:
-        prompt += f"Show a powerful {card_type.lower()} character. "
+        prompt += f"Portray a formidable {card_type.lower()} character. "
     else:
-        prompt += "Depict the card's effect in a visually appealing way. "
+        prompt += "Capture the essence in an intriguing way. "
 
-    prompt += f"Use the {card_data['color']} color scheme with {card_data['rarity'].lower()} quality. "
-    prompt += "High detail, dramatic lighting, no text or borders."
+    prompt += f"Integrate {card_data['color']} hues with elements of {card_data['rarity'].lower()} quality. "
+    prompt += "Maintain high detail and dramatic lighting without any text or borders."
 
     return prompt
 
+# Flexible card generation with optional JSON input
+def generate_card_with_rarity(rarity: str, json_data: Dict[str, Any] = None) -> Dict[str, Any]:
+    """
+    Generate a card with the specified rarity, or use the provided JSON data if available.
+    """
+    try:
+        # If JSON data is provided, use it directly
+        if json_data:
+            card_data = json_data
+            standardize_card_data(card_data)  # Standardize field names if necessary
+            logger.info(f"Using provided JSON data to generate image for card: {card_data['name']}")
+        else:
+            # Generate a card if no JSON data is provided
+            card_data = generate_card(rarity)
+
+        # Generate the image from the card data
+        card_data['image_url'] = generate_card_image(card_data)  # Store the image file name
+        return card_data
+
+    except Exception as e:
+        logger.error(f"Failed to generate card with rarity {rarity}: {e}")
+        raise ValueError(f"Failed to generate card with rarity {rarity}: {e}")
+
 # Pack simulation
 def open_pack() -> List[Dict[str, Any]]:
-    """Simulate opening a Magic: The Gathering pack of cards."""
+    """Simulate opening a card pack."""
     pack = []
 
     rarity_probabilities = get_rarity_probabilities()
@@ -239,13 +262,3 @@ def open_pack() -> List[Dict[str, Any]]:
 def get_rarity_probabilities() -> Dict[str, float]:
     """Fetch or configure the rarity probabilities dynamically."""
     return DEFAULT_RARITY_PROBABILITIES
-
-def generate_card_with_rarity(rarity: str) -> Dict[str, Any]:
-    """Generate a card with specified rarity and its corresponding image."""
-    try:
-        card_data = generate_card(rarity)
-        card_data['image_url'] = generate_card_image(card_data)  # Store the image file name
-        return card_data
-    except Exception as e:
-        logger.error(f"Failed to generate card with rarity {rarity}: {e}")
-        raise ValueError(f"Failed to generate card with rarity {rarity}: {e}")

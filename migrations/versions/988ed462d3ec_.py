@@ -1,8 +1,8 @@
-"""Reinitialize migrations and updated Card model for local image storage
+"""empty message
 
-Revision ID: b203d3523cb0
+Revision ID: 988ed462d3ec
 Revises: 
-Create Date: 2024-10-03 02:01:02.809753
+Create Date: 2024-10-08 18:27:05.228514
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'b203d3523cb0'
+revision = '988ed462d3ec'
 down_revision = None
 branch_labels = None
 depends_on = None
