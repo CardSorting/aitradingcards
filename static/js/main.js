@@ -3,7 +3,6 @@ class CardManager {
         this.cardGrid = document.getElementById('card-grid');
         this.generateCardButton = document.getElementById('generate-card');
         this.openPackButton = document.getElementById('open-pack');
-        this.importClipboardButton = document.getElementById('import-clipboard-card');
         this.page = 1;
         this.cardsPerPage = 20;
         this.isLoading = false;
@@ -19,23 +18,12 @@ class CardManager {
         if (!this.cardGrid) throw new Error('Element with ID "card-grid" not found.');
         if (!this.generateCardButton) throw new Error('Element with ID "generate-card" not found.');
         if (!this.openPackButton) throw new Error('Element with ID "open-pack" not found.');
-        if (!this.importClipboardButton) throw new Error('Element with ID "import-clipboard-card" not found.');
     }
 
     // Initialize all core events
     initEvents() {
         this.generateCardButton.addEventListener('click', () => this.handleGenerateCard());
         this.openPackButton.addEventListener('click', () => this.handleOpenPack());
-        this.importClipboardButton.addEventListener('click', () => this.handleImportCardFromClipboard());
-
-        // Add button to capture card image
-        const saveImageButton = document.createElement('button');
-        saveImageButton.id = 'save-card-image';
-        saveImageButton.innerText = 'Save Card as Image';
-        saveImageButton.className = 'bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded fixed bottom-5 right-5 z-50'; // Added styling for better visibility
-        document.body.appendChild(saveImageButton);
-        saveImageButton.addEventListener('click', () => this.captureCardAsImage('card-container'));
-
         window.addEventListener('scroll', this.debounce(() => this.handleInfiniteScroll(), 200));
     }
 
@@ -53,42 +41,11 @@ class CardManager {
         return spinner;
     }
 
-    // Capture the card container as an image and trigger download
-    async captureCardAsImage(containerId) {
-        try {
-            const container = document.getElementById(containerId);
-            if (!container) {
-                throw new Error(`Container with ID ${containerId} not found.`);
-            }
-            const canvas = await html2canvas(container);
-            this.downloadImage(canvas);
-        } catch (error) {
-            console.error('Error capturing card as image:', error);
-            alert('Failed to capture card. Please try again.');
-        }
-    }
-
-    // Convert canvas to image and trigger a download
-    downloadImage(canvas) {
-        const link = document.createElement('a');
-        link.href = canvas.toDataURL('image/png');
-        link.download = 'card_image.png';
-        link.click();
-    }
-
-    // Handles generating a new card (with optional JSON from clipboard)
+    // Handles generating a new card
     async handleGenerateCard() {
         this.toggleLoading(true);
         try {
-            const jsonData = await this.getCardJsonDataFromClipboard();
-            let newCard;
-
-            if (jsonData) {
-                newCard = await this.importCardFromClipboard(jsonData);
-            } else {
-                newCard = await this.fetchCardFromAPI();
-            }
-
+            const newCard = await this.fetchCardFromAPI();
             this.cardGrid.prepend(this.createCardElement(newCard));
         } catch (error) {
             console.error('Error generating card:', error);
@@ -96,42 +53,6 @@ class CardManager {
         } finally {
             this.toggleLoading(false);
         }
-    }
-
-    // Handles importing a card from the clipboard
-    async handleImportCardFromClipboard() {
-        this.toggleLoading(true);
-        try {
-            const jsonData = await this.getCardJsonDataFromClipboard();
-            if (!jsonData) {
-                throw new Error('No valid JSON data found on clipboard');
-            }
-
-            const newCard = await this.importCardFromClipboard(jsonData);
-            this.cardGrid.prepend(this.createCardElement(newCard));
-        } catch (error) {
-            console.error('Error importing card from clipboard:', error);
-            alert(`Error importing card from clipboard: ${error.message}`);
-        } finally {
-            this.toggleLoading(false);
-        }
-    }
-
-    // Sends clipboard JSON data to the server to create a new card
-    async importCardFromClipboard(jsonData) {
-        const response = await fetch('/import_card_from_clipboard', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(jsonData),
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to import card from clipboard');
-        }
-
-        const data = await response.json();
-        return data.card;
     }
 
     // Handles opening a new card pack
@@ -212,17 +133,6 @@ class CardManager {
             clearTimeout(timeout);
             timeout = setTimeout(() => func.apply(this, args), wait);
         };
-    }
-
-    async getCardJsonDataFromClipboard() {
-        try {
-            const text = await navigator.clipboard.readText();
-            const jsonData = JSON.parse(text);
-            return jsonData;
-        } catch (error) {
-            console.warn('No valid JSON data found on clipboard or clipboard access denied:', error);
-            return null;
-        }
     }
 
     createManaSymbols(manaCost) {

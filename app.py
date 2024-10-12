@@ -1,42 +1,41 @@
 import os
-from flask import Flask
-from flask_migrate import Migrate
-from extensions import db
-from openai_config import openai_client  # Import OpenAI client from config
+from quart import Quart
+from gino import Gino
+
+# Initialize the Gino database instance
+db = Gino()
 
 def create_app():
-    # Create and configure the Flask app
-    app = Flask(__name__)
+    app = Quart(__name__)
 
-    # Set SQLite database URI for SQLAlchemy (replace this with your database URI if not using SQLite)
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
+    # Fetch environment variables from .env file or set default values
+    app.config['DB_USER'] = os.getenv('DB_USER', 'yourusername')
+    app.config['DB_PASSWORD'] = os.getenv('DB_PASSWORD', 'yourpassword')
+    app.config['DB_HOST'] = os.getenv('DB_HOST', 'localhost')
+    app.config['DB_PORT'] = os.getenv('DB_PORT', 5432)  # Default Postgres port
+    app.config['DB_DATABASE'] = os.getenv('DB_DATABASE', 'yourdatabase')
 
-    # Disable SQLAlchemy event notifications (this can consume resources unnecessarily)
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    # Configure Gino PostgreSQL connection string
+    app.config['DB_DSN'] = f"postgresql://{app.config['DB_USER']}:{app.config['DB_PASSWORD']}@{app.config['DB_HOST']}:{app.config['DB_PORT']}/{app.config['DB_DATABASE']}"
 
-    # Initialize database
+    # Initialize the Gino database with the Quart app
     db.init_app(app)
 
-    # Initialize Flask-Migrate
-    migrate = Migrate(app, db)
-
-    # Import models here to ensure they're known to Flask-Migrate for migrations
-    from models import Card  # Make sure to import all your models here
+    # Import models here to ensure they're known to the database
+    from models import Card  # Import your models here
 
     # Import and register blueprints (routes)
-    from routes import main as main_blueprint
+    from routes.main import main as main_blueprint
+    from routes.image_gen import image_gen as image_gen_blueprint
+
+    # Register blueprints with unique URL prefixes to prevent route overlaps
     app.register_blueprint(main_blueprint)
+    app.register_blueprint(image_gen_blueprint, url_prefix='/api/image_gen')  # Unique prefix
 
     return app
 
-# Create the Flask application instance
+# Create the Quart application instance
 app = create_app()
 
-# Context processor to inject OpenAI client into templates
-@app.context_processor
-def inject_openai_client():
-    return dict(openai_client=openai_client)
-
-# Only for development (set debug=True)
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

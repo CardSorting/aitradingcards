@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en" :class="{ 'dark': darkMode }">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hybrid MTG Card Builder</title>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com" defer></script>
+
+    <!-- Google Fonts for MTG-like Typography -->
+    <link href="https://fonts.googleapis.com/css2?family=IM+Fell+English&display=swap" rel="stylesheet">
+
+    <style>
+        /* Custom styles for smooth transitions */
+        .mana-symbol {
+            transition: background-color 0.3s, color 0.3s, transform 0.2s;
+        }
+        .mana-symbol:hover {
+            transform: scale(1.1);
+        }
+        /* MTG-like font for card name and type */
+        .mtg-font {
+            font-family: 'IM Fell English', serif;
+        }
+        /* Card frame styling */
+        .card-frame {
+            border: 2px solid;
+            border-radius: 12px;
+            overflow: hidden;
+            background-color: #ffffff;
+            transition: border-color 0.3s, background-color 0.3s;
+        }
+        /* Dark mode card frame */
+        .dark .card-frame {
+            background-color: #2d2d2d;
+        }
+        /* Scrollbar styling for card text */
+        .card-text::-webkit-scrollbar {
+            width: 6px;
+        }
+        .card-text::-webkit-scrollbar-thumb {
+            background-color: rgba(0, 0, 0, 0.2);
+            border-radius: 3px;
+        }
+        /* Drag-and-Drop Styles */
+        .dropzone {
+            border: 3px dashed #cccccc;
+            border-radius: 8px;
+            padding: 2rem;
+            text-align: center;
+            transition: background-color 0.3s, border-color 0.3s, border-width 0.3s;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+        .dropzone.dragover {
+            background-color: #e6f7ff;
+            border-color: #1890ff;
+            border-width: 4px;
+        }
+        /* Icon inside dropzone */
+        .dropzone .icon {
+            font-size: 2rem;
+            color: #1890ff;
+            margin-bottom: 1rem;
+            transition: transform 0.3s;
+        }
+        .dropzone.dragover .icon {
+            transform: scale(1.2);
+        }
+        /* Animated border effect */
+        .dropzone::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(45deg, transparent, rgba(24, 144, 255, 0.3), transparent);
+            z-index: 0;
+            transition: opacity 0.3s;
+            opacity: 0;
+        }
+        .dropzone.dragover::before {
+            opacity: 1;
+            animation: borderAnimation 2s linear infinite;
+        }
+        @keyframes borderAnimation {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+        /* Image Preview Styles */
+        .image-preview {
+            margin-top: 1.5rem;
+            border: 2px solid #cccccc;
+            border-radius: 8px;
+            padding: 1rem;
+            position: relative;
+            background-color: #f9f9f9;
+        }
+        .image-preview img {
+            max-width: 100%;
+            max-height: 200px;
+            object-fit: cover;
+            border-radius: 6px;
+        }
+        .remove-button {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background-color: rgba(255, 0, 0, 0.7);
+            border: none;
+            border-radius: 50%;
+            width: 1.5rem;
+            height: 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .remove-button:hover {
+            background-color: rgba(255, 0, 0, 0.9);
+        }
+        .remove-button::before {
+            content: '✕';
+            color: #fff;
+            font-size: 1rem;
+        }
+        /* AI Image Prompting Styles */
+        .ai-section {
+            border: 2px solid #cccccc;
+            border-radius: 8px;
+            padding: 1rem;
+            background-color: #f9f9f9;
+        }
+        .ai-section.dark {
+            background-color: #3a3a3a;
+            border-color: #555555;
+        }
+        .ai-section input[type="text"] {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #cccccc;
+            border-radius: 4px;
+            margin-bottom: 0.5rem;
+            background-color: #ffffff;
+            color: #000000;
+        }
+        .ai-section.dark input[type="text"] {
+            background-color: #4a5568;
+            border-color: #555555;
+            color: #ffffff;
+        }
+        .ai-section button {
+            padding: 0.5rem 1rem;
+            background-color: #38a169;
+            color: #ffffff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .ai-section button:hover {
+            background-color: #2f855a;
+        }
+        .ai-section .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #38a169;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .ai-section img {
+            max-width: 100%;
+            margin-top: 1rem;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen flex items-center justify-center p-4">
+    <div class="container mx-auto">
+        <div class="flex flex-col lg:flex-row bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
+            <!-- Update Card Form -->
+            <div class="w-full lg:w-1/2 p-6">
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 space-y-6">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-xl font-semibold text-gray-800 dark:text-gray-100">Update Card Details</h3>
+                        <button id="toggle-dark-mode" class="text-gray-600 dark:text-gray-300 focus:outline-none" aria-label="Toggle Dark Mode">
+                            <!-- Sun Icon -->
+                            <svg id="sun-icon" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none"
+                                 viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M12 3v1m0 16v1m8.66-9h-1M4.34 12h-1m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M12 5a7 7 0 100 14 7 7 0 000-14z"/>
+                            </svg>
+                            <!-- Moon Icon -->
+                            <svg id="moon-icon" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 hidden" fill="none"
+                                 viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M12 3c.132 0 .263.003.393.01A9 9 0 0021 12a9 9 0 00-9-9z"/>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <!-- Error Message -->
+                    <p id="error-message" class="text-red-500 text-sm hidden" role="alert" aria-live="assertive"></p>
+
+                    <!-- Form Fields -->
+                    <div>
+                        <label for="input-card-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Card Name<span class="text-red-500">*</span>
+                            <span class="ml-1 text-xs text-gray-500" id="name-length">0/30</span>
+                        </label>
+                        <input type="text" id="input-card-name" placeholder="Enter card name"
+                               maxlength="30"
+                               class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-gray-100"
+                               aria-required="true">
+                    </div>
+
+                    <!-- Enhanced Image Upload Section -->
+                    <div>
+                        <label for="input-card-image" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Card Image
+                        </label>
+                        <div
+                            id="dropzone"
+                            class="dropzone mt-1"
+                            tabindex="0"
+                            role="button"
+                            aria-label="Drag and drop an image here or click to upload"
+                        >
+                            <div class="icon">
+                                <!-- Upload Icon -->
+                                <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="48" height="48">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M4 8v1a3 3 0 003 3h10a3 3 0 003-3V8m-9 4h4m-2-2v4"/>
+                                </svg>
+                            </div>
+                            <p class="text-gray-500 dark:text-gray-400 font-semibold">
+                                Drag & Drop your image here or click to upload
+                            </p>
+                            <p class="text-xs text-gray-400 mt-1">
+                                (Max size: 2MB, Min width: 300px)
+                            </p>
+                            <input type="file" id="input-card-image" accept="image/*" class="hidden" aria-hidden="true">
+                        </div>
+                        <!-- Image Preview and Remove Button -->
+                        <div id="image-preview" class="image-preview hidden">
+                            <img src="#" alt="Uploaded Image Preview">
+                            <button id="remove-image" class="remove-button" aria-label="Remove Uploaded Image"></button>
+                        </div>
+                    </div>
+
+                    <!-- AI Image Prompting Section -->
+                    <div id="ai-section" class="ai-section">
+                        <h4 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-2">AI Image Prompting</h4>
+                        <input type="text" id="ai-prompt" placeholder="Enter image description"
+                               class="p-2 border border-gray-300 dark:border-gray-600 rounded-md"
+                               aria-label="AI Image Description">
+                        <button id="generate-ai-image" disabled>
+                            Generate Image
+                        </button>
+                        <!-- Loading Spinner -->
+                        <div id="ai-loading-spinner" class="loading-spinner mt-2 hidden" role="status" aria-live="polite"></div>
+                        <!-- AI Generated Image Preview and Set Button -->
+                        <div id="ai-image-preview" class="mt-2 hidden">
+                            <img src="#" alt="AI Generated Image">
+                            <button id="set-ai-image" class="mt-2 bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-md">
+                                Set as Card Image
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Mana Cost -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Mana Cost</label>
+                        <div class="flex space-x-2 mt-1" role="group" aria-label="Mana Cost Selector" id="mana-selector">
+                            <!-- Mana buttons will be dynamically generated via JavaScript -->
+                        </div>
+                    </div>
+
+                    <!-- Card Type -->
+                    <div>
+                        <label for="input-card-type" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Card Type<span class="text-red-500">*</span>
+                            <span class="ml-1 text-xs text-gray-500" id="type-length">0/20</span>
+                        </label>
+                        <input type="text" id="input-card-type" placeholder="Card Type"
+                               maxlength="20"
+                               class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-gray-100"
+                               aria-required="true">
+                    </div>
+
+                    <!-- Abilities -->
+                    <div>
+                        <label for="input-abilities" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Abilities<span class="text-red-500">*</span>
+                            <span class="ml-1 text-xs text-gray-500" id="abilities-length">0/150</span>
+                        </label>
+                        <textarea id="input-abilities" rows="3" placeholder="Enter abilities"
+                                  maxlength="150"
+                                  class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-gray-100"
+                                  aria-required="true"></textarea>
+                    </div>
+
+                    <!-- Flavor Text -->
+                    <div>
+                        <label for="input-flavor" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Flavor Text
+                            <span class="ml-1 text-xs text-gray-500" id="flavor-length">0/100</span>
+                        </label>
+                        <textarea id="input-flavor" rows="3" placeholder="Enter flavor text"
+                                  maxlength="100"
+                                  class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-gray-100"
+                                  aria-required="false"></textarea>
+                    </div>
+
+                    <!-- Rarity -->
+                    <div>
+                        <label for="input-rarity" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Rarity<span class="text-red-500">*</span>
+                        </label>
+                        <select id="input-rarity"
+                                class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-gray-100"
+                                aria-required="true">
+                            <option value="Common">Common</option>
+                            <option value="Uncommon">Uncommon</option>
+                            <option value="Rare">Rare</option>
+                            <option value="Mythic Rare">Mythic Rare</option>
+                        </select>
+                    </div>
+
+                    <!-- Power/Toughness -->
+                    <div>
+                        <label for="input-power-toughness" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Power/Toughness</label>
+                        <input type="text" id="input-power-toughness" placeholder="Power/Toughness"
+                               class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-gray-100">
+                    </div>
+
+                    <!-- Artist Name -->
+                    <div>
+                        <label for="input-artist" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Artist Name<span class="text-red-500">*</span>
+                            <span class="ml-1 text-xs text-gray-500" id="artist-length">0/25</span>
+                        </label>
+                        <input type="text" id="input-artist" placeholder="Enter artist name"
+                               maxlength="25"
+                               class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-gray-100"
+                               aria-required="true">
+                    </div>
+
+                    <!-- Frame Color -->
+                    <div>
+                        <label for="input-frame-color" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Frame Color</label>
+                        <input type="color" id="input-frame-color"
+                               class="mt-1 block w-16 h-10 p-0 border-0 rounded-md cursor-pointer"
+                               aria-label="Select Frame Color">
+                    </div>
+
+                    <!-- Additional Color Customization -->
+                    <div class="mt-6">
+                        <h4 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">Customize Card Colors</h4>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <!-- Background Colors -->
+                            <div class="space-y-2">
+                                <h5 class="text-md font-medium text-gray-700 dark:text-gray-300">Background Colors</h5>
+                                <div class="flex items-center space-x-2">
+                                    <label for="input-card-bg-color" class="w-1/2 text-sm">Card Background:</label>
+                                    <input type="color" id="input-card-bg-color"
+                                           class="w-1/2 h-8 border border-gray-300 rounded-md cursor-pointer"
+                                           aria-label="Select Card Background Color">
+                                </div>
+                            </div>
+
+                            <!-- Section Colors -->
+                            <div class="space-y-2">
+                                <h5 class="text-md font-medium text-gray-700 dark:text-gray-300">Section Colors</h5>
+                                <div class="flex items-center space-x-2">
+                                    <label for="input-header-bg-color" class="w-1/2 text-sm">Header Background:</label>
+                                    <input type="color" id="input-header-bg-color"
+                                           class="w-1/2 h-8 border border-gray-300 rounded-md cursor-pointer"
+                                           aria-label="Select Header Background Color">
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <label for="input-footer-bg-color" class="w-1/2 text-sm">Footer Background:</label>
+                                    <input type="color" id="input-footer-bg-color"
+                                           class="w-1/2 h-8 border border-gray-300 rounded-md cursor-pointer"
+                                           aria-label="Select Footer Background Color">
+                                </div>
+                            </div>
+
+                            <!-- Text Colors -->
+                            <div class="space-y-2">
+                                <h5 class="text-md font-medium text-gray-700 dark:text-gray-300">Text Colors</h5>
+                                <div class="flex items-center space-x-2">
+                                    <label for="input-text-color" class="w-1/2 text-sm">Main Text:</label>
+                                    <input type="color" id="input-text-color"
+                                           class="w-1/2 h-8 border border-gray-300 rounded-md cursor-pointer"
+                                           aria-label="Select Main Text Color">
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <label for="input-abilities-text-color" class="w-1/2 text-sm">Abilities Text:</label>
+                                    <input type="color" id="input-abilities-text-color"
+                                           class="w-1/2 h-8 border border-gray-300 rounded-md cursor-pointer"
+                                           aria-label="Select Abilities Text Color">
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <label for="input-flavor-text-color" class="w-1/2 text-sm">Flavor Text:</label>
+                                    <input type="color" id="input-flavor-text-color"
+                                           class="w-1/2 h-8 border border-gray-300 rounded-md cursor-pointer"
+                                           aria-label="Select Flavor Text Color">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="flex space-x-2 mt-6">
+                        <button type="button" id="update-card"
+                                class="w-1/2 inline-flex justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                            Update Card
+                        </button>
+                        <button type="button" id="reset-form"
+                                class="w-1/2 inline-flex justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+                            Reset
+                        </button>
+                    </div>
+
+                    <div class="flex space-x-2 mt-4">
+                        <button type="button" id="export-card"
+                                class="w-full inline-flex justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                            Download Card as Image
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card Preview Section -->
+            <div class="w-full lg:w-1/2 p-6 flex justify-center">
+                <div class="mtg-card rounded-lg shadow-lg relative transform transition-transform duration-300 hover:scale-105"
+                     style="width: 475px; height: 625px;" 
+                     id="card-preview">
+                    <div class="card-frame flex flex-col h-full">
+                        <!-- Card Header: Name and Mana -->
+                        <div class="card-header p-4 rounded-t-lg flex justify-between items-center" id="card-header">
+                            <h2 id="card-name" class="text-xl font-bold mtg-font">Unnamed Card</h2>
+                            <div id="mana-cost" class="mana-cost flex space-x-2">
+                                <!-- Mana symbols will be dynamically generated via JavaScript -->
+                            </div>
+                        </div>
+
+                        <!-- Card Image -->
+                        <div class="relative">
+                            <img id="card-image" src="https://via.placeholder.com/375x170.png?text=Card+Image" alt="Card Image" class="w-full h-60 object-cover">
+                        </div>
+
+                        <!-- Card Type -->
+                        <div class="p-4 border-b text-sm mt-2" id="card-type" style="border-color: #cbd5e0;">
+                            Unknown Type
+                        </div>
+
+                        <!-- Card Text Section -->
+                        <div class="card-text p-4 flex-grow text-sm flex flex-col overflow-y-auto" id="card-text" style="background-color: #f7fafc;">
+                            <div class="abilities" id="abilities-text">
+                                No abilities
+                            </div>
+                            <div class="flavor-text mt-auto text-center italic" id="flavor-text">
+                                No flavor text
+                            </div>
+                        </div>
+
+                        <!-- Card Footer: Artist and Power/Toughness -->
+                        <div class="flex justify-between items-center p-4 text-xs rounded-b-lg" id="card-footer" style="background-color: #000000;">
+                            <span id="artist-details">Artist: Unknown</span>
+                            <span id="power-toughness">P/T: N/A</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- External JavaScript File -->
+    <script src="/static/js/script.js" defer></script>
+</body>
+</html>

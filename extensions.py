@@ -1,3 +1,4 @@
-from flask_sqlalchemy import SQLAlchemy
+from gino import Gino
 
-db = SQLAlchemy()
+# Initialize Gino database
+db = Gino()

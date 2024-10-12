@@ -1,4 +1,4 @@
-run =  ["gunicorn", "--bind", "0.0.0.0:5000", "app:app"]
+run =  ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:5000", "app:app"]
 entrypoint = "app.py"
 modules = ["nodejs-20", "python-3.11"]
 
@@ -8,7 +8,7 @@ hidden = [".pythonlibs"]
 channel = "stable-24_05"
 
 [deployment]
-run =  ["gunicorn", "--bind", "0.0.0.0:5000", "app:app"]
+run =  ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:5000", "app:app"]
 deploymentTarget = "gce"
 
 [[ports]]
